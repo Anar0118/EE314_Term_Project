@@ -151,6 +151,7 @@ character_renderer player1 (
 .y_pos(P1_Y),
 .attacking(p1_attacking),
 .state(p1_state),
+.switch(SW[2]),
 .sprite_on(sprite_on),
 .r(spr_r),
 .g(spr_g),
