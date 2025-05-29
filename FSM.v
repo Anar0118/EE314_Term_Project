@@ -13,8 +13,7 @@ module FSM (
   input				 btn_attack,
   output reg [9:0] x_pos,       // top‐left X of sprite
   output reg [2:0] state,       // current state (for debugging/anim)
-  output reg		 attacking,
-  output reg [3:0] attack_frame
+  output reg		 attacking
 );
 
 // state encoding
@@ -46,7 +45,7 @@ localparam BWD_STEP = 2;
 reg [2:0]  nxt_state;
 reg [9:0]  nxt_x;
 reg        nxt_attacking;
-reg [3:0]  nxt_attack_frame;
+reg [4:0]  attack_frame = 5'd0;
 
 // combinational next‐state logic
 always@(*) begin
@@ -54,13 +53,11 @@ always@(*) begin
 	nxt_state = state;
 	nxt_x = x_pos;
 	nxt_attacking = attacking;
-   nxt_attack_frame = attack_frame;
 
 	case (state)
 	S_IDLE: begin
 		if (btn_attack) begin
 			nxt_state = S_ATTACK;
-			nxt_attack_frame = 0;
 			nxt_attacking = 1;
 		end
 			
@@ -76,7 +73,6 @@ always@(*) begin
 		
 		if (btn_attack) begin
 			nxt_state = S_ATTACK;
-			nxt_attack_frame = 0;
 			nxt_attacking = 1;
 		end
 		
@@ -91,7 +87,6 @@ always@(*) begin
 		
 		if (btn_attack) begin
         nxt_state = S_ATTACK;
-        nxt_attack_frame = 0;
         nxt_attacking = 1;
       end
 		
@@ -100,21 +95,26 @@ always@(*) begin
 	end
 	
 	S_ATTACK: begin
-		// increment attack frame counter
-		//nxt_attack_frame = attack_frame + 1;
-			
-      // check if attack animation is complete
-      //if (attack_frame >= ATTACK_TOTAL-1) begin
-		
 		nxt_state = S_ATTACK_SU;
-		//nxt_attacking = 0;
-		//end
    end
-	S_ATTACK_SU: nxt_state = S_ATTACK_ACT;
-	S_ATTACK_ACT: nxt_state = S_ATTACK_REC;
+	
+	S_ATTACK_SU: begin
+		if (attack_frame == 5) nxt_state = S_ATTACK_ACT;
+		else nxt_state = S_ATTACK_SU;
+	end
+	
+	S_ATTACK_ACT: begin
+		if (attack_frame == 2) nxt_state = S_ATTACK_REC;
+		else nxt_state = S_ATTACK_ACT;
+	end
+	
 	S_ATTACK_REC: begin
-		nxt_state = S_IDLE;
-		nxt_attacking = 0;
+		if (attack_frame == 16) begin
+			nxt_state = S_IDLE;
+			nxt_attacking = 0;
+		end
+		else nxt_state = S_ATTACK_REC;
+			
 	end
 
 	default: nxt_state = S_IDLE;
@@ -127,13 +127,31 @@ always @(posedge clk or posedge reset) begin
 		state <= S_IDLE;
 		x_pos <= MIN_X + 10;   // start 10 px in from left
 		attacking <= 0;
-		attack_frame <= 0;
 	end 
 	else begin
 		state <= nxt_state;
 		x_pos <= nxt_x;
 		attacking <= nxt_attacking;
-		attack_frame <= nxt_attack_frame;
+		
+		case(state)
+		S_ATTACK_SU: begin
+			if (attack_frame != 5) attack_frame <= attack_frame + 1;
+			else attack_frame = 0;
+		end
+		
+		S_ATTACK_ACT: begin
+			if (attack_frame != 2) attack_frame <= attack_frame + 1;
+			else attack_frame = 0;
+		end
+		
+		S_ATTACK_REC: begin
+			if (attack_frame != 16) attack_frame <= attack_frame + 1;
+			else attack_frame = 0;
+		end
+		default attack_frame = 0;
+		
+		
+		endcase
 	end
 end
 

@@ -5,36 +5,11 @@
 
 module Term_Project(
 
-	//////////// Audio //////////
-	input 		          		AUD_ADCDAT,
-	inout 		          		AUD_ADCLRCK,
-	inout 		          		AUD_BCLK,
-	output		          		AUD_DACDAT,
-	inout 		          		AUD_DACLRCK,
-	output		          		AUD_XCK,
-
 	//////////// CLOCK //////////
 	input 		          		CLOCK2_50,
 	input 		          		CLOCK3_50,
 	input 		          		CLOCK4_50,
 	input 		          		CLOCK_50,
-
-	//////////// SDRAM //////////
-	output		    [12:0]		DRAM_ADDR,
-	output		     [1:0]		DRAM_BA,
-	output		          		DRAM_CAS_N,
-	output		          		DRAM_CKE,
-	output		          		DRAM_CLK,
-	output		          		DRAM_CS_N,
-	inout 		    [15:0]		DRAM_DQ,
-	output		          		DRAM_LDQM,
-	output		          		DRAM_RAS_N,
-	output		          		DRAM_UDQM,
-	output		          		DRAM_WE_N,
-
-	//////////// I2C for Audio and Video-In //////////
-	output		          		FPGA_I2C_SCLK,
-	inout 		          		FPGA_I2C_SDAT,
 
 	//////////// SEG7 //////////
 	output		     [6:0]		HEX0,
@@ -70,8 +45,8 @@ module Term_Project(
 //  REG/WIRE declarations
 //=======================================================
 
-wire reset = ~KEY[0];
-wire clk_out, clk_out2;
+wire reset = SW[9];
+wire clk_out, clk_out2, clk_mux;
 
 wire        video_on;
 wire        hsync, vsync;
@@ -82,12 +57,14 @@ wire [9:0] hcnt, vcnt;
 wire [9:0] p1_x;
 wire [2:0] p1_state;
 wire p1_attacking;
-wire [3:0] p1_attack_frame;
 
 
 //=======================================================
 //  Structural coding
 //=======================================================
+
+
+
 
 Clock_Divider #(.DIVISOR(2)) clock25(
 .clk(CLOCK_50),
@@ -100,6 +77,14 @@ Clock_Divider #(.DIVISOR(833334)) clock60(
 .reset(reset),
 .clk_out(clk_out2)
 );
+
+MUXx #(.W(1)) clock_mux(
+.select(SW[1]),
+.mux_input_0(clk_out2),
+.mux_input_1(~KEY[0]),
+.mux_output(clk_mux)
+);
+
 
 vga_background background(
 .clk(clk_out),
@@ -131,18 +116,21 @@ assign VGA_B = { bg_b, 4'h0 };
 //wire [2:0] p1_state;
 
 FSM fsm1(
-.clk(clk_out2),
+.clk(clk_mux),
 .reset(reset),
 .btn_left(~KEY[3]),
 .btn_right(~KEY[1]),
 .btn_attack(~KEY[2]),
 .x_pos(p1_x),
 .state(p1_state),
-.attacking(p1_attacking),
-.attack_frame(p1_attack_frame)
+.attacking(p1_attacking)
 );
 
 
+hexto7seg fsm1_state(
+.hex(p1_state),
+.hexn(HEX0)
+);
 
 
 //----------------------------------------------------------------------  
@@ -163,7 +151,6 @@ character_renderer player1 (
 .y_pos(P1_Y),
 .attacking(p1_attacking),
 .state(p1_state),
-//.attack_frame(p1_attack_frame),
 .sprite_on(sprite_on),
 .r(spr_r),
 .g(spr_g),

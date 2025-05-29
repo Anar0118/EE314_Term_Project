@@ -9,7 +9,6 @@ module character_renderer (
     input  [9:0] y_pos,        // sprite top‐left Y
 	 input 		  attacking,
 	 input  [2:0] state,      
-	 //input  [3:0] attack_frame,
     output       sprite_on,    // high when inside the rectangle
     output [3:0] r, g, b       // 4-bit RGB for the sprite
 );
@@ -22,9 +21,7 @@ module character_renderer (
   wire in_hitbox_y = (vcnt >= y_pos + 80) && (vcnt < y_pos + 160);     // centered vertically
   
   // determine if we're in active attack frames (from Table 1)
-  wire attack_active = attacking; //&& 
-                      //(attack_frame >= 5) && // startup frames
-                      //(attack_frame < 7);    // active frames
+  wire attack_active = attacking;
   
   
   // sprite is either body or active hitbox
