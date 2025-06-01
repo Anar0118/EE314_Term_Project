@@ -55,9 +55,15 @@ wire [3:0]  bg_r, bg_g, bg_b;
 wire [9:0] hcnt, vcnt;
 
 wire [9:0] p1_x;
+wire [9:0] p2_x;
 wire [2:0] p1_state;
+wire [2:0] p2_state;
 wire p1_attacking;
-
+wire p2_attacking;
+wire p1_dir_attacking;
+wire p2_dir_attacking;
+wire [4:0] p1_attack_frame;
+wire [4:0] p2_attack_frame;
 
 //=======================================================
 //  Structural coding
@@ -115,6 +121,7 @@ assign VGA_B = { bg_b, 4'h0 };
 //wire [9:0] p1_x;
 //wire [2:0] p1_state;
 
+// Character#1 FSM
 FSM fsm1(
 .clk(clk_mux),
 .reset(reset),
@@ -123,13 +130,44 @@ FSM fsm1(
 .btn_attack(~KEY[2]),
 .x_pos(p1_x),
 .state(p1_state),
-.attacking(p1_attacking)
+.attacking(p1_attacking),
+.dir_attacking(p1_dir_attacking),
+.attack_frame(p1_attack_frame)
+);
+
+// Character#2 FSM
+FSM fsm2(
+.clk(clk_mux),
+.reset(reset),
+.btn_left(SW[8]),
+.btn_right(SW[7]),
+.btn_attack(SW[6]),
+.x_pos(p2_x),
+.state(p2_state),
+.attacking(p2_attacking),
+.dir_attacking(p2_dir_attacking),
+.attack_frame(p2_attack_frame)
 );
 
 
 hexto7seg fsm1_state(
 .hex(p1_state),
 .hexn(HEX0)
+);
+
+hexto7seg fsm2_state(
+.hex(p2_state),
+.hexn(HEX1)
+);
+
+hexto7seg fsm1_attack_frame(
+.hex(p1_attack_frame),
+.hexn(HEX2)
+);
+
+hexto7seg fsm2_attack_frame(
+.hex(p2_attack_frame),
+.hexn(HEX3)
 );
 
 
@@ -139,31 +177,67 @@ hexto7seg fsm1_state(
 // Hard-coded start position; later drive this from your FSM!
 //localparam [9:0] P1_X = 40;
 localparam [9:0] P1_Y = 120;
+localparam [9:0] P2_Y = 120;
 
 wire        sprite_on;
 wire [3:0]  spr_r, spr_g, spr_b;
 
-character_renderer player1 (
+wire        sprite2_on;
+wire [3:0]  spr2_r, spr2_g, spr2_b;
+
+
+// Character#1 Renderer
+character_renderer player1(
 .video_on(video_on),
 .hcnt(hcnt),
 .vcnt(vcnt),
 .x_pos(p1_x),
 .y_pos(P1_Y),
 .attacking(p1_attacking),
+.dir_attacking(p1_dir_attacking),
 .state(p1_state),
 .switch(SW[2]),
+.player_num(0),
 .sprite_on(sprite_on),
 .r(spr_r),
 .g(spr_g),
 .b(spr_b)
 );
 
+// Character#2 Renderer
+character_renderer player2(
+.video_on(video_on),
+.hcnt(hcnt),
+.vcnt(vcnt),
+.x_pos(p2_x),
+.y_pos(P2_Y),
+.attacking(p2_attacking),
+.dir_attacking(p2_dir_attacking),
+.state(p2_state),
+.switch(SW[2]),
+.player_num(1),
+.sprite_on(sprite2_on),
+.r(spr2_r),
+.g(spr2_g),
+.b(spr2_b)
+);
+
+
+
+// Priority: Player 2 > Player 1 > Background
+wire [3:0] final_r = sprite2_on ? spr2_r : (sprite_on ? spr_r : bg_r);
+wire [3:0] final_g = sprite2_on ? spr2_g : (sprite_on ? spr_g : bg_g);
+wire [3:0] final_b = sprite2_on ? spr2_b : (sprite_on ? spr_b : bg_b);
+
+wire collision = (sprite_on && sprite2_on);
+assign LEDR[0] = collision;  // Visual feedback
+
 //----------------------------------------------------------------------  
 // 4) final RGB mux: sprite over background
 //----------------------------------------------------------------------  
-wire [3:0] final_r = sprite_on ? spr_r : bg_r;
-wire [3:0] final_g = sprite_on ? spr_g : bg_g;
-wire [3:0] final_b = sprite_on ? spr_b : bg_b;
+//wire [3:0] final_r = sprite_on ? spr_r : bg_r;
+//wire [3:0] final_g = sprite_on ? spr_g : bg_g;
+//wire [3:0] final_b = sprite_on ? spr_b : bg_b;
 
 // expand 4-bit → 8-bit for the DE1-SoC header
 assign VGA_R       = { final_r, 4'h0 };

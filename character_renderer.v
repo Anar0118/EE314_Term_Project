@@ -7,9 +7,11 @@ module character_renderer (
 	input  [9:0] hcnt, vcnt,   // pixel counters from vga_sync
 	input  [9:0] x_pos,        // sprite top‐left X
 	input  [9:0] y_pos,        // sprite top‐left Y
-	input 		  attacking,
+	input 		 attacking,
+	input	       dir_attacking,
 	input  [2:0] state,
 	input        switch,
+	input        player_num,
 	output       sprite_on,    // high when inside the rectangle
 	output [3:0] r, g, b       // 4-bit RGB for the sprite
 );
@@ -19,14 +21,37 @@ localparam HEIGHT = 240;
 localparam BORDER_WIDTH = 2; // 2-pixel wide border
 
 
+reg [7:0] HIT_WIDTH;
+reg [7:0] HIT_HEIGHT_TOP;
+reg [7:0] HIT_HEIGHT_BOTTOM;
+
+always@(*) begin
+	HIT_WIDTH  = 8'd0;
+   HIT_HEIGHT_TOP   = 8'd0;
+	HIT_HEIGHT_BOTTOM   = 8'd0;
+	
+	if (dir_attacking) begin
+		HIT_WIDTH  = 8'd20;
+		HIT_HEIGHT_TOP   = 8'd100;
+		HIT_HEIGHT_BOTTOM   = 8'd140;
+	end
+	else if (attacking) begin
+		HIT_WIDTH  = 8'd32;
+		HIT_HEIGHT_TOP   = 8'd80;
+		HIT_HEIGHT_BOTTOM   = 8'd160;
+	end
+end
+
+
 // within the 64×240 box -- in hurtbox?
 wire in_x = (hcnt >= x_pos) && (hcnt < x_pos + WIDTH);
 wire in_y = (vcnt >= y_pos) && (vcnt < y_pos + HEIGHT);
 wire in_hurtbox = in_x && in_y;
 
 // attack hitbox dimensions (extends forward during active frames)
-wire in_hitbox_x = (hcnt >= x_pos + WIDTH) && (hcnt < x_pos + WIDTH + 32); // 32px hitbox extension(x)
-wire in_hitbox_y = (vcnt >= y_pos + 80) && (vcnt < y_pos + 160);     // 80px hitbox extension(y) centered vertically
+wire in_hitbox_x = player_num ? (hcnt <= x_pos + 10) && (hcnt > x_pos + 10 - HIT_WIDTH):
+										  (hcnt >= x_pos + WIDTH-10) && (hcnt < x_pos + WIDTH - 10 + HIT_WIDTH); // 32px hitbox extension(x)
+wire in_hitbox_y = (vcnt >= y_pos + HIT_HEIGHT_TOP) && (vcnt < y_pos + HIT_HEIGHT_BOTTOM);     // 80px hitbox extension(y) centered vertically
 wire in_hitbox = in_hitbox_x && in_hitbox_y;
 
 
@@ -52,52 +77,87 @@ wire hurtbox_outline = (
 
 
 // determine if we're in active attack frames (from Table 1)
-wire attack_active = attacking;
+wire attack_active = (attacking || dir_attacking);
 
 // Stick figure parameters (relative to hurtbox)
 localparam HEAD_RADIUS = 20;
 localparam BODY_LENGTH = 60;
-localparam ARM_LENGTH = 40;
-localparam LEG_LENGTH = 60;
+localparam ARM_LENGTH_IDLE = 40;
+localparam LEG_LENGTH_IDLE = 60;
+// ATTACK POSE (when attacking)
+localparam ARM_LENGTH_ATTACK = 50;
+localparam LEG_LENGTH_ATTACK = 50;
 
 // Stick figure coordinates (relative to character position)
 wire [9:0] rel_x = hcnt - x_pos;
 wire [9:0] rel_y = vcnt - y_pos;
 
 // Head (circle)
-wire [9:0] head_center_x = WIDTH/2;
-wire [9:0] head_center_y = 40;
-wire [19:0] head_dist_sq = (rel_x-head_center_x)*(rel_x-head_center_x) + 
-									(rel_y-head_center_y)*(rel_y-head_center_y);
+wire [9:0] HEAD_CENTER_X = WIDTH/2;
+wire [9:0] HEAD_CENTER_Y = 40;
+wire [19:0] head_dist_sq = (rel_x-HEAD_CENTER_X)*(rel_x-HEAD_CENTER_X) + 
+									(rel_y-HEAD_CENTER_Y)*(rel_y-HEAD_CENTER_Y);
 wire head_on = (head_dist_sq < (HEAD_RADIUS*HEAD_RADIUS));
 
 // Body (vertical line)
-wire body_on = (rel_x >= head_center_x-2) && (rel_x <= head_center_x+2) &&
-				   (rel_y >= head_center_y+HEAD_RADIUS) && 
-				   (rel_y <= head_center_y+HEAD_RADIUS+BODY_LENGTH);
+wire body_on = (rel_x >= HEAD_CENTER_X-2) && (rel_x <= HEAD_CENTER_X+2) &&
+				   (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS) && 
+				   (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH);
 					
 // Arms (angled lines)
-wire left_arm_on = (rel_y >= head_center_y+HEAD_RADIUS+20) &&
-					    (rel_y <= head_center_y+HEAD_RADIUS+20+ARM_LENGTH) &&
-					    (rel_x >= head_center_x - (rel_y-(head_center_y+HEAD_RADIUS+20))/2) &&
-					    (rel_x <= head_center_x - (rel_y-(head_center_y+HEAD_RADIUS+20))/2 + 4);
+wire left_arm_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+20) &&
+					    (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+20+ARM_LENGTH_IDLE) &&
+					    (rel_x >= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+20))/2) &&
+					    (rel_x <= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+20))/2 + 4);
 
-wire right_arm_on = (rel_y >= head_center_y+HEAD_RADIUS+20) &&
-					     (rel_y <= head_center_y+HEAD_RADIUS+20+ARM_LENGTH) &&
-					     (rel_x >= head_center_x + (rel_y-(head_center_y+HEAD_RADIUS+20))/2 - 4) &&
-					     (rel_x <= head_center_x + (rel_y-(head_center_y+HEAD_RADIUS+20))/2);
+wire right_arm_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+20) &&
+					     (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+20+ARM_LENGTH_IDLE) &&
+					     (rel_x >= HEAD_CENTER_X + (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+20))/2 - 4) &&
+					     (rel_x <= HEAD_CENTER_X + (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+20))/2);
 
 // Legs (angled lines)
-wire left_leg_on = (rel_y >= head_center_y+HEAD_RADIUS+BODY_LENGTH) &&
-					    (rel_y <= head_center_y+HEAD_RADIUS+BODY_LENGTH+LEG_LENGTH) &&
-					    (rel_x >= head_center_x - (rel_y-(head_center_y+HEAD_RADIUS+BODY_LENGTH))/3) &&
-					    (rel_x <= head_center_x - (rel_y-(head_center_y+HEAD_RADIUS+BODY_LENGTH))/3 + 4);
+wire left_leg_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH) &&
+					    (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH+LEG_LENGTH_IDLE) &&
+					    (rel_x >= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH))/3) &&
+					    (rel_x <= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH))/3 + 4);
 
-wire right_leg_on = (rel_y >= head_center_y+HEAD_RADIUS+BODY_LENGTH) &&
-					     (rel_y <= head_center_y+HEAD_RADIUS+BODY_LENGTH+LEG_LENGTH) &&
-					     (rel_x >= head_center_x + (rel_y-(head_center_y+HEAD_RADIUS+BODY_LENGTH))/3 - 4) &&
-					     (rel_x <= head_center_x + (rel_y-(head_center_y+HEAD_RADIUS+BODY_LENGTH))/3);
+wire right_leg_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH) &&
+					     (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH+LEG_LENGTH_IDLE) &&
+					     (rel_x >= HEAD_CENTER_X + (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH))/3 - 4) &&
+					     (rel_x <= HEAD_CENTER_X + (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH))/3);
 
+						  
+// Attack arms (one arm extended forward)
+wire left_arm_attack = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+10) &&
+						     (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+10+ARM_LENGTH_ATTACK) &&
+						     (rel_x >= HEAD_CENTER_X - 10) &&
+						     (rel_x <= HEAD_CENTER_X - 10 + 4) &&
+						     (rel_y < HEAD_CENTER_Y+HEAD_RADIUS+10+ARM_LENGTH_ATTACK/2 || 
+							   rel_x < HEAD_CENTER_X);
+
+wire right_arm_attack = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+30) &&
+							   (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+30+ARM_LENGTH_ATTACK/2) &&
+							   (rel_x >= HEAD_CENTER_X + WIDTH/4) &&
+							  (rel_x <= HEAD_CENTER_X + WIDTH/4 + 4);
+
+// Attack legs (wider stance)
+wire left_leg_attack = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH) &&
+						     (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH+LEG_LENGTH_ATTACK) &&
+						     (rel_x >= HEAD_CENTER_X - 15) &&
+						     (rel_x <= HEAD_CENTER_X - 15 + 4);
+
+wire right_leg_attack = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH) &&
+							   (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH+LEG_LENGTH_ATTACK) &&
+							   (rel_x >= HEAD_CENTER_X + 15 - 4) &&
+							   (rel_x <= HEAD_CENTER_X + 15);						  
+
+// Select pose based on attack state
+wire left_arm_on = attacking ? left_arm_attack : left_arm_idle;
+wire right_arm_on = attacking ? right_arm_attack : right_arm_idle;
+wire left_leg_on = attacking ? left_leg_attack : left_leg_idle;
+wire right_leg_on = attacking ? right_leg_attack : right_leg_idle;							
+						  
+						  
 // Combined stick figure
 wire stick_figure_on = in_hurtbox && (head_on || body_on || left_arm_on || right_arm_on || left_leg_on || right_leg_on);
 
@@ -110,30 +170,22 @@ assign sprite_on = video_on && ((switch && hurtbox_outline) || stick_figure_on |
 //										 (attack_active && in_hitbox_x && in_hitbox_y) );
 //assign sprite_on = video_on && in_x && in_y;
 
-// choose your character color here (e.g. bright red)
-localparam [3:0] CHAR_R = 4'hF;
-localparam [3:0] CHAR_G = 4'h0;
-localparam [3:0] CHAR_B = 4'h0;
-/*
-localparam [3:0] HITBOX_R = 4'h0;
-localparam [3:0] HITBOX_G = 4'hF;
-localparam [3:0] HITBOX_B = 4'h0;
-*/
+
   
 reg [3:0] hit_r, hit_g, hit_b;
 always @* begin
 	case (state)
-	4'd4: begin    // state == 4 → green
+	4'd5: begin    // state == 4 → green
 	hit_r = 4'h0; hit_g = 4'hF; hit_b = 4'h0;
 	end
-	4'd5: begin    // state == 5 → blue
+	4'd6: begin    // state == 5 → blue
 		hit_r = 4'h0; hit_g = 4'h0; hit_b = 4'hF;
 	end
-	4'd6: begin    // state == 6 → orange (full red + mid green)
-		hit_r = 4'hF; hit_g = 4'h8; hit_b = 4'h0;
+	4'd7: begin    // state == 6 → blue
+		hit_r = 4'hF; hit_g = 4'h0; hit_b = 4'h0;
 	end
-	default: begin // default hitbox color (green)
-		hit_r = 4'h0; hit_g = 4'hF; hit_b = 4'h0;
+	default: begin // default hitbox color (black)
+		hit_r = 4'h0; hit_g = 4'h0; hit_b = 4'h0;
 	end
 	endcase
 end
@@ -142,15 +194,18 @@ end
 // Output colors
 assign r = sprite_on ? ((attack_active && in_hitbox) ? hit_r : 
 						     ((switch && hurtbox_outline) ? 4'hF :       // red outline
-						     (stick_figure_on ? 4'h0 : 4'h0))) : 4'h0; // Black stick figure
+						     ((stick_figure_on && player_num) ? 4'h0 : 
+							  ((stick_figure_on && ~player_num) ? 4'h0: 4'h0)))) : 4'h0; // Black stick figure
 
-assign g = sprite_on ? ((attack_active && in_hitbox) ? hit_g : 
-						     (switch && hurtbox_outline ? 4'h0 : 
-						     (stick_figure_on ? 4'h0 : 4'h0))) : 4'h0;
+assign g = sprite_on ? ((attack_active && in_hitbox) ? hit_g :
+							  ((switch && hurtbox_outline) ? 4'h0 : 
+						     ((stick_figure_on && player_num) ? 4'h0 : 
+							  ((stick_figure_on && ~player_num) ? 4'h0: 4'h0)))) : 4'h0;
 
 assign b = sprite_on ? ((attack_active && in_hitbox) ? hit_b : 
-						     (switch && hurtbox_outline ? 4'h0 : 
-						     (stick_figure_on ? 4'hF : 4'h0))) : 4'h0;
+						     ((switch && hurtbox_outline) ? 4'h0 : 
+						     ((stick_figure_on && player_num) ? 4'h0 : 
+							  ((stick_figure_on && ~player_num) ? 4'hF: 4'h0)))) : 4'h0;
 /*
 assign r = sprite_on ? (attack_active && in_hitbox_x && in_hitbox_y ? hit_r : CHAR_R) : 4'h0;
 assign g = sprite_on ? (attack_active && in_hitbox_x && in_hitbox_y ? hit_g : CHAR_G) : 4'h0;

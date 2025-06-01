@@ -13,39 +13,59 @@ module FSM (
   input				 btn_attack,
   output reg [9:0] x_pos,       // top‐left X of sprite
   output reg [2:0] state,       // current state (for debugging/anim)
-  output reg		 attacking
+  output reg		 attacking,
+  output reg       dir_attacking,
+  output reg [4:0] attack_frame
 );
 
 // state encoding
-localparam S_IDLE     = 3'd0;
-localparam S_MOVE_FWD = 3'd1;
-localparam S_MOVE_BWD = 3'd2;
-localparam S_ATTACK   = 3'd3;
-localparam S_ATTACK_SU= 3'd4;
-localparam S_ATTACK_ACT= 3'd5;
-localparam S_ATTACK_REC= 3'd6; 
+localparam [2:0] S_IDLE     = 3'd0;
+localparam [2:0] S_MOVE_FWD = 3'd1;
+localparam [2:0] S_MOVE_BWD = 3'd2;
+localparam [2:0] S_ATTACK   = 3'd3;
+localparam [2:0] S_DIR_ATTACK = 3'd4;
+localparam [2:0] S_ATTACK_SU= 3'd5;
+localparam [2:0] S_ATTACK_ACT= 3'd6;
+localparam [2:0] S_ATTACK_REC= 3'd7; 
  // (you’ll add more like ATTACK, HITSTUN, etc.)
 
-// attack timing parameters (from Table 1 in Appendix A)
-localparam ATTACK_STARTUP = 5;  // startup frames
-localparam ATTACK_ACTIVE  = 2;  // active frames
-localparam ATTACK_RECOVERY= 16; // recovery frames
-localparam ATTACK_TOTAL   = ATTACK_STARTUP + ATTACK_ACTIVE + ATTACK_RECOVERY; 
+reg [2:0] ATTACK_STARTUP = 0;
+reg [1:0] ATTACK_ACTIVE = 0;
+reg [3:0] ATTACK_RECOVERY = 0;
  
+// attack timing parameters (from Table 1 in Appendix A)
+always@(*) begin
+	ATTACK_STARTUP  = 0;
+   ATTACK_ACTIVE   = 0;
+   ATTACK_RECOVERY = 0;
+	
+	if (attacking) begin
+		ATTACK_STARTUP  = 4;
+		ATTACK_ACTIVE   = 1;
+		ATTACK_RECOVERY = 15;
+	end
+	else if (dir_attacking) begin
+		ATTACK_STARTUP  = 3;
+		ATTACK_ACTIVE   = 2;
+		ATTACK_RECOVERY = 14;
+	end
+end
+
  
 // horizontal bounds
-localparam MIN_X = 0;
-localparam MAX_X = 640 - 64;  // 64-pixel wide sprite
+localparam MIN_X = 1'd0;
+localparam [9:0] MAX_X = 10'd640 - 10'd64;  // 64-pixel wide sprite
 
 // how many pixels per frame
-localparam FWD_STEP = 3;
-localparam BWD_STEP = 2;
+localparam [1:0] FWD_STEP = 2'd3;
+localparam [1:0] BWD_STEP = 2'd2;
 
 // next‐state / next‐pos signals
 reg [2:0]  nxt_state;
 reg [9:0]  nxt_x;
 reg        nxt_attacking;
-reg [4:0]  attack_frame = 5'd0;
+reg        nxt_dir_attacking;
+reg [4:0]  intertnal_attack_frame = 5'd0;
 
 // combinational next‐state logic
 always@(*) begin
@@ -53,12 +73,14 @@ always@(*) begin
 	nxt_state = state;
 	nxt_x = x_pos;
 	nxt_attacking = attacking;
+	nxt_dir_attacking = dir_attacking;
 
 	case (state)
 	S_IDLE: begin
 		if (btn_attack) begin
 			nxt_state = S_ATTACK;
 			nxt_attacking = 1;
+			nxt_dir_attacking = 0;
 		end
 			
 		else if (btn_right) nxt_state = S_MOVE_FWD;
@@ -72,10 +94,10 @@ always@(*) begin
 		if (nxt_x > MAX_X) nxt_x = MAX_X;
 		
 		if (btn_attack) begin
-			nxt_state = S_ATTACK;
-			nxt_attacking = 1;
+			nxt_state = S_DIR_ATTACK;
+			nxt_attacking = 0;
+			nxt_dir_attacking = 1;
 		end
-		
 		// if key still held, stay moving, else go back to idle
 		else if (!btn_right) nxt_state = S_IDLE;
 	end
@@ -86,32 +108,34 @@ always@(*) begin
 		else nxt_x = MIN_X;
 		
 		if (btn_attack) begin
-        nxt_state = S_ATTACK;
-        nxt_attacking = 1;
+        nxt_state = S_DIR_ATTACK;
+		  nxt_dir_attacking = 1;
+        nxt_attacking = 0;
       end
 		
 		// if key still held, stay moving, else go back to idle
 		if (!btn_left) nxt_state = S_IDLE;
 	end
 	
-	S_ATTACK: begin
-		nxt_state = S_ATTACK_SU;
-   end
+	S_ATTACK: nxt_state = S_ATTACK_SU;
+	
+	S_DIR_ATTACK: nxt_state = S_ATTACK_SU;
 	
 	S_ATTACK_SU: begin
-		if (attack_frame == 5) nxt_state = S_ATTACK_ACT;
+		if (intertnal_attack_frame == ATTACK_STARTUP) nxt_state = S_ATTACK_ACT;
 		else nxt_state = S_ATTACK_SU;
 	end
 	
 	S_ATTACK_ACT: begin
-		if (attack_frame == 2) nxt_state = S_ATTACK_REC;
+		if (intertnal_attack_frame == ATTACK_ACTIVE) nxt_state = S_ATTACK_REC;
 		else nxt_state = S_ATTACK_ACT;
 	end
 	
 	S_ATTACK_REC: begin
-		if (attack_frame == 16) begin
+		if (intertnal_attack_frame == ATTACK_RECOVERY) begin
 			nxt_state = S_IDLE;
 			nxt_attacking = 0;
+			nxt_dir_attacking = 0;
 		end
 		else nxt_state = S_ATTACK_REC;
 			
@@ -125,31 +149,38 @@ end
 always @(posedge clk or posedge reset) begin
 	if (reset) begin
 		state <= S_IDLE;
-		x_pos <= MIN_X + 10;   // start 10 px in from left
+		x_pos <= MIN_X + 10'd10;   // start 10 px in from left
 		attacking <= 0;
+		dir_attacking <= 0;
 	end 
 	else begin
 		state <= nxt_state;
 		x_pos <= nxt_x;
 		attacking <= nxt_attacking;
+		dir_attacking <= nxt_dir_attacking;
 		
 		case(state)
 		S_ATTACK_SU: begin
-			if (attack_frame != 5) attack_frame <= attack_frame + 1;
-			else attack_frame = 0;
+			if (intertnal_attack_frame != ATTACK_STARTUP) intertnal_attack_frame <= intertnal_attack_frame + 5'd1;
+			else intertnal_attack_frame <= 0;
+			attack_frame <= intertnal_attack_frame;
 		end
 		
 		S_ATTACK_ACT: begin
-			if (attack_frame != 2) attack_frame <= attack_frame + 1;
-			else attack_frame = 0;
+			if (intertnal_attack_frame != ATTACK_ACTIVE) intertnal_attack_frame <= intertnal_attack_frame + 5'd1;
+			else intertnal_attack_frame <= 0;
+			attack_frame <= intertnal_attack_frame;
 		end
 		
 		S_ATTACK_REC: begin
-			if (attack_frame != 16) attack_frame <= attack_frame + 1;
-			else attack_frame = 0;
+			if (intertnal_attack_frame != ATTACK_RECOVERY) intertnal_attack_frame <= intertnal_attack_frame + 5'd1;
+			else intertnal_attack_frame <= 0;
+			attack_frame <= intertnal_attack_frame;
 		end
-		default attack_frame = 0;
-		
+		default begin 
+			intertnal_attack_frame <= 0;
+			attack_frame <= intertnal_attack_frame;
+		end
 		
 		endcase
 	end
