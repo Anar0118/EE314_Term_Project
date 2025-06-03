@@ -11,6 +11,8 @@ module FSM (
   input            btn_left,    // move left?
   input            btn_right,   // move right?
   input				 btn_attack,
+  input            player,      // 0-player1  1-player2
+  input      [9:0] x_pos_opponent,
   output reg [9:0] x_pos,       // top‐left X of sprite
   output reg [2:0] state,       // current state (for debugging/anim)
   output reg		 attacking,
@@ -53,8 +55,9 @@ end
 
  
 // horizontal bounds
-localparam MIN_X = 1'd0;
-localparam [9:0] MAX_X = 10'd640 - 10'd64;  // 64-pixel wide sprite
+localparam [9:0] MIN_X = 10'd0;
+localparam [9:0] MIN_X1 = 10'd640 - 10'd64;
+
 
 // how many pixels per frame
 localparam [1:0] FWD_STEP = 2'd3;
@@ -90,8 +93,18 @@ always@(*) begin
 
 	S_MOVE_FWD: begin
 		// move right
-		nxt_x = x_pos + FWD_STEP;
-		if (nxt_x > MAX_X) nxt_x = MAX_X;
+		case(player)
+			1'd0: begin
+				nxt_x = x_pos + FWD_STEP;
+				if (nxt_x > x_pos_opponent - 64) nxt_x = x_pos_opponent - 64;
+			end
+			
+			1'd1: begin
+				nxt_x = x_pos - FWD_STEP;
+				if (nxt_x < x_pos_opponent + 64) nxt_x = x_pos_opponent + 64;
+			end
+			default: nxt_x = x_pos;
+		endcase
 		
 		if (btn_attack) begin
 			nxt_state = S_DIR_ATTACK;
@@ -104,8 +117,19 @@ always@(*) begin
 
 	S_MOVE_BWD: begin
 		// move left
-		if (x_pos > BWD_STEP) nxt_x = x_pos - BWD_STEP;
-		else nxt_x = MIN_X;
+		case(player)
+			1'd0: begin
+				if (x_pos > BWD_STEP) nxt_x = x_pos - BWD_STEP;
+				else nxt_x = MIN_X;
+			end
+			
+			1'd1: begin
+				if (x_pos < 640 - 64 - BWD_STEP) nxt_x = x_pos + BWD_STEP;
+				else nxt_x = MIN_X1;
+			end
+			default: nxt_x = x_pos;
+		endcase
+		
 		
 		if (btn_attack) begin
         nxt_state = S_DIR_ATTACK;
@@ -147,11 +171,23 @@ end
 
 // sequential state & position update
 always @(posedge clk or posedge reset) begin
+		
 	if (reset) begin
 		state <= S_IDLE;
-		x_pos <= MIN_X + 10'd10;   // start 10 px in from left
 		attacking <= 0;
 		dir_attacking <= 0;
+		intertnal_attack_frame <= 0;
+		attack_frame <= 0;
+
+		// Proper starting positions for each player
+		if (player == 1'd0) begin
+			// Player 1 starts at left (10px from edge)
+			x_pos <= 10'd10;
+		end
+		else begin
+			// Player 2 starts at right (10px from edge - sprite width)
+			x_pos <= 10'd640 - 10'd64 - 10'd10;
+		end
 	end 
 	else begin
 		state <= nxt_state;
@@ -177,11 +213,10 @@ always @(posedge clk or posedge reset) begin
 			else intertnal_attack_frame <= 0;
 			attack_frame <= intertnal_attack_frame;
 		end
-		default begin 
+		default: begin 
 			intertnal_attack_frame <= 0;
 			attack_frame <= intertnal_attack_frame;
 		end
-		
 		endcase
 	end
 end
