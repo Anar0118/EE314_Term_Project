@@ -49,13 +49,14 @@ wire in_y = (vcnt >= y_pos) && (vcnt < y_pos + HEIGHT);
 wire in_hurtbox = in_x && in_y;
 
 // attack hitbox dimensions (extends forward during active frames)
-wire in_hitbox_x = player_num ? (hcnt <= x_pos + 10) && (hcnt > x_pos + 10 - HIT_WIDTH):
-										  (hcnt >= x_pos + WIDTH-10) && (hcnt < x_pos + WIDTH - 10 + HIT_WIDTH); // 32px hitbox extension(x)
+wire in_hitbox_x = player_num ? (hcnt <= x_pos) && (hcnt > x_pos - HIT_WIDTH):
+										  (hcnt >= x_pos + WIDTH) && (hcnt < x_pos + WIDTH + HIT_WIDTH); // 32px hitbox extension(x)
 wire in_hitbox_y = (vcnt >= y_pos + HIT_HEIGHT_TOP) && (vcnt < y_pos + HIT_HEIGHT_BOTTOM);     // 80px hitbox extension(y) centered vertically
 wire in_hitbox = in_hitbox_x && in_hitbox_y;
 
 
 // Proper hurtbox outline (constrained to character area)
+/*
 wire hurtbox_outline = (
   // Left border (full height)
   ((hcnt >= x_pos) && (hcnt < x_pos + BORDER_WIDTH) && 
@@ -73,7 +74,7 @@ wire hurtbox_outline = (
   ((vcnt >= y_pos + HEIGHT - BORDER_WIDTH) && (vcnt < y_pos + HEIGHT) && 
 	(hcnt >= x_pos + BORDER_WIDTH) && (hcnt < x_pos + WIDTH - BORDER_WIDTH))
 );
-
+*/
 
 
 // determine if we're in active attack frames (from Table 1)
@@ -163,7 +164,7 @@ wire stick_figure_on = in_hurtbox && (head_on || body_on || left_arm_on || right
 
 
 // Final sprite detection (hurtbox outline, stick figure, or active hitbox)
-assign sprite_on = video_on && ((switch && hurtbox_outline) || stick_figure_on || (attack_active && in_hitbox));
+assign sprite_on = video_on && ((switch && in_hurtbox) || stick_figure_on || (attack_active && in_hitbox));
 			  
 // sprite is either body or active hitbox
 //assign sprite_on = video_on && ( (in_hurtbox) || 
@@ -181,7 +182,7 @@ always @* begin
 	4'd6: begin    // state == 5 → blue
 		hit_r = 4'h0; hit_g = 4'h0; hit_b = 4'hF;
 	end
-	4'd7: begin    // state == 6 → blue
+	4'd7: begin    // state == 6 → red
 		hit_r = 4'hF; hit_g = 4'h0; hit_b = 4'h0;
 	end
 	default: begin // default hitbox color (black)
@@ -193,17 +194,17 @@ end
 
 // Output colors
 assign r = sprite_on ? ((attack_active && in_hitbox) ? hit_r : 
-						     ((switch && hurtbox_outline) ? 4'hF :       // red outline
+						     ((switch && in_hurtbox) ? 4'hF :       // red outline
 						     ((stick_figure_on && player_num) ? 4'h0 : 
 							  ((stick_figure_on && ~player_num) ? 4'h0: 4'h0)))) : 4'h0; // Black stick figure
 
 assign g = sprite_on ? ((attack_active && in_hitbox) ? hit_g :
-							  ((switch && hurtbox_outline) ? 4'h0 : 
+							  ((switch && in_hurtbox) ? 4'h0 : 
 						     ((stick_figure_on && player_num) ? 4'h0 : 
 							  ((stick_figure_on && ~player_num) ? 4'h0: 4'h0)))) : 4'h0;
 
 assign b = sprite_on ? ((attack_active && in_hitbox) ? hit_b : 
-						     ((switch && hurtbox_outline) ? 4'h0 : 
+						     ((switch && in_hurtbox) ? 4'h0 : 
 						     ((stick_figure_on && player_num) ? 4'h0 : 
 							  ((stick_figure_on && ~player_num) ? 4'hF: 4'h0)))) : 4'h0;
 /*

@@ -122,13 +122,12 @@ assign VGA_B = { bg_b, 4'h0 };
 //wire [2:0] p1_state;
 
 // Character#1 FSM
-FSM fsm1(
+FSM_1 fsm1(
 .clk(clk_mux),
 .reset(reset),
 .btn_left(~KEY[3]),
 .btn_right(~KEY[1]),
 .btn_attack(~KEY[2]),
-.player(1'd0),
 .x_pos_opponent(p2_x),
 .x_pos(p1_x),
 .state(p1_state),
@@ -138,13 +137,12 @@ FSM fsm1(
 );
 
 // Character#2 FSM
-FSM fsm2(
+FSM_2 fsm2(
 .clk(clk_mux),
 .reset(reset),
 .btn_left(SW[8]),
 .btn_right(SW[7]),
 .btn_attack(SW[6]),
-.player(1'd1),
 .x_pos_opponent(p1_x),
 .x_pos(p2_x),
 .state(p2_state),
@@ -183,7 +181,7 @@ hexto7seg fsm2_attack_frame(
 localparam [9:0] P1_Y = 120;
 localparam [9:0] P2_Y = 120;
 
-wire        sprite_on;
+wire        sprite1_on;
 wire [3:0]  spr_r, spr_g, spr_b;
 
 wire        sprite2_on;
@@ -202,7 +200,7 @@ character_renderer player1(
 .state(p1_state),
 .switch(SW[2]),
 .player_num(0),
-.sprite_on(sprite_on),
+.sprite_on(sprite1_on),
 .r(spr_r),
 .g(spr_g),
 .b(spr_b)
@@ -226,15 +224,36 @@ character_renderer player2(
 .b(spr2_b)
 );
 
+wire hit1_flag, hit2_flag,stun1_flag, stun2_flag;
+
+Hit_Detector detector(
+.clk(clk_mux),
+.reset(reset),
+.state_1(p1_state),
+.state_2(p2_state),
+.p1_x(p1_x),
+.p2_x(p2_x),
+.hit1_flag(hit1_flag),
+.hit2_flag(hit2_flag),
+.stun1_flag(stun1_flag),
+.stun2_flag(stun2_flag),
+//.leds({{LEDR[9],LEDR[8],LEDR[7]},{LEDR[0],LEDR[1],LEDR[2]}})
+.led1(LEDR[9]),
+.led2(LEDR[8]),
+.led3(LEDR[7]),
+.led4(LEDR[0]),
+.led5(LEDR[1]),
+.led6(LEDR[2])
+);
 
 
 // Priority: Player 2 > Player 1 > Background
-wire [3:0] final_r = sprite2_on ? spr2_r : (sprite_on ? spr_r : bg_r);
-wire [3:0] final_g = sprite2_on ? spr2_g : (sprite_on ? spr_g : bg_g);
-wire [3:0] final_b = sprite2_on ? spr2_b : (sprite_on ? spr_b : bg_b);
+wire [3:0] final_r = sprite2_on ? spr2_r : (sprite1_on ? spr_r : bg_r);
+wire [3:0] final_g = sprite2_on ? spr2_g : (sprite1_on ? spr_g : bg_g);
+wire [3:0] final_b = sprite2_on ? spr2_b : (sprite1_on ? spr_b : bg_b);
 
-wire collision = (sprite_on && sprite2_on);
-assign LEDR[0] = collision;  // Visual feedback
+//wire collision = (sprite_on && sprite2_on);
+//assign LEDR[4] = collision;  // Visual feedback
 
 //----------------------------------------------------------------------  
 // 4) final RGB mux: sprite over background
