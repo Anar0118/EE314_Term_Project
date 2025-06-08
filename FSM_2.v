@@ -13,6 +13,7 @@ module FSM_2 (
   input            btn_right,   // move right?
   input				 btn_attack,
   input      [9:0] x_pos_opponent,
+  input            play_active,
   output reg [9:0] x_pos,       // top‐left X of sprite
   output reg [3:0] state,       // current state (for debugging/anim)
   output reg		 attacking,
@@ -62,15 +63,18 @@ always@(*) begin
 
 	case (state)
 	S_IDLE: begin
-		if (btn_attack) begin
-			nxt_state = S_ATTACK;
-			nxt_attacking = 1;
-			nxt_dir_attacking = 0;
+		if (~play_active) nxt_state = S_IDLE;
+		else begin
+			if (btn_attack) begin
+				nxt_state = S_ATTACK;
+				nxt_attacking = 1;
+				nxt_dir_attacking = 0;
+			end
+				
+			else if (btn_right) nxt_state = S_MOVE_FWD;
+			else if (btn_left ) nxt_state = S_MOVE_BWD;
+			else nxt_state = S_IDLE;
 		end
-			
-		else if (btn_right) nxt_state = S_MOVE_FWD;
-		else if (btn_left ) nxt_state = S_MOVE_BWD;
-		else nxt_state = S_IDLE;
 	end
 
 	S_MOVE_FWD: begin

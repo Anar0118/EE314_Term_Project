@@ -16,29 +16,29 @@ module character_renderer (
 	output [3:0] r, g, b       // 4-bit RGB for the sprite
 );
 // Character dimensions
-localparam WIDTH = 64;
-localparam HEIGHT = 240;
-localparam BORDER_WIDTH = 2; // 2-pixel wide border
+localparam [9:0] WIDTH = 64;
+localparam [9:0] HEIGHT = 240;
+localparam [9:0] BORDER_WIDTH = 2; // 2-pixel wide border
 
 
-reg [7:0] HIT_WIDTH;
-reg [7:0] HIT_HEIGHT_TOP;
-reg [7:0] HIT_HEIGHT_BOTTOM;
+reg [9:0] HIT_WIDTH;
+reg [9:0] HIT_HEIGHT_TOP;
+reg [9:0] HIT_HEIGHT_BOTTOM;
 
 always@(*) begin
-	HIT_WIDTH  = 8'd0;
-   HIT_HEIGHT_TOP   = 8'd0;
-	HIT_HEIGHT_BOTTOM   = 8'd0;
+	HIT_WIDTH  = 10'd0;
+   HIT_HEIGHT_TOP   = 10'd0;
+	HIT_HEIGHT_BOTTOM   = 10'd0;
 	
 	if (dir_attacking) begin
-		HIT_WIDTH  = 8'd20;
-		HIT_HEIGHT_TOP   = 8'd100;
-		HIT_HEIGHT_BOTTOM   = 8'd140;
+		HIT_WIDTH  = 10'd20;
+		HIT_HEIGHT_TOP   = 10'd100;
+		HIT_HEIGHT_BOTTOM   = 10'd140;
 	end
 	else if (attacking) begin
-		HIT_WIDTH  = 8'd32;
-		HIT_HEIGHT_TOP   = 8'd80;
-		HIT_HEIGHT_BOTTOM   = 8'd160;
+		HIT_WIDTH  = 10'd32;
+		HIT_HEIGHT_TOP   = 10'd80;
+		HIT_HEIGHT_BOTTOM   = 10'd160;
 	end
 end
 
@@ -81,35 +81,35 @@ wire hurtbox_outline = (
 wire attack_active = (attacking || dir_attacking);
 
 // Stick figure parameters (relative to hurtbox)
-localparam HEAD_RADIUS = 20;
-localparam BODY_LENGTH = 60;
-localparam ARM_LENGTH_IDLE = 40;
-localparam LEG_LENGTH_IDLE = 60;
+localparam [9:0] HEAD_RADIUS = 20;
+localparam [9:0] BODY_LENGTH = 60;
+localparam [9:0] ARM_LENGTH_IDLE = 40;
+localparam [9:0] LEG_LENGTH_IDLE = 60;
 // ATTACK POSE (when attacking)
-localparam ARM_LENGTH_ATTACK = 50;
-localparam LEG_LENGTH_ATTACK = 50;
+localparam [9:0] ARM_LENGTH_ATTACK = 50;
+localparam [9:0] LEG_LENGTH_ATTACK = 50;
 
 // Stick figure coordinates (relative to character position)
 wire [9:0] rel_x = hcnt - x_pos;
 wire [9:0] rel_y = vcnt - y_pos;
 
 // Head (circle)
-wire [9:0] HEAD_CENTER_X = WIDTH/2;
-wire [9:0] HEAD_CENTER_Y = 40;
+wire [9:0] HEAD_CENTER_X = WIDTH/(10'd2);
+wire [9:0] HEAD_CENTER_Y = 10'd40;
 wire [19:0] head_dist_sq = (rel_x-HEAD_CENTER_X)*(rel_x-HEAD_CENTER_X) + 
 									(rel_y-HEAD_CENTER_Y)*(rel_y-HEAD_CENTER_Y);
 wire head_on = (head_dist_sq < (HEAD_RADIUS*HEAD_RADIUS));
 
 // Body (vertical line)
-wire body_on = (rel_x >= HEAD_CENTER_X-2) && (rel_x <= HEAD_CENTER_X+2) &&
+wire body_on = (rel_x >= HEAD_CENTER_X-10'd2) && (rel_x <= HEAD_CENTER_X+2) &&
 				   (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS) && 
 				   (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+BODY_LENGTH);
 					
 // Arms (angled lines)
-wire left_arm_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+20) &&
-					    (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+20+ARM_LENGTH_IDLE) &&
-					    (rel_x >= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+20))/2) &&
-					    (rel_x <= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS+20))/2 + 4);
+wire left_arm_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS + 10'd20) &&
+					    (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+ 10'd20 +ARM_LENGTH_IDLE) &&
+					    (rel_x >= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS + 10'd20))/10'd2) &&
+					    (rel_x <= HEAD_CENTER_X - (rel_y-(HEAD_CENTER_Y+HEAD_RADIUS + 10'd20))/10'd2 + 10'd4);
 
 wire right_arm_idle = (rel_y >= HEAD_CENTER_Y+HEAD_RADIUS+20) &&
 					     (rel_y <= HEAD_CENTER_Y+HEAD_RADIUS+20+ARM_LENGTH_IDLE) &&

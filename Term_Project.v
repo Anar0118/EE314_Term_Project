@@ -36,7 +36,13 @@ module Term_Project(
 	output		          		VGA_HS,
 	output		     [7:0]		VGA_R,
 	output		          		VGA_SYNC_N,
-	output		          		VGA_VS
+	output		          		VGA_VS,
+	
+	//////////// PS2 //////////
+	input 		          		PS2_CLK,
+	input 		          		PS2_CLK2,
+	input 		          		PS2_DAT,
+	input 		          		PS2_DAT2
 );
 
 
@@ -65,12 +71,16 @@ wire p2_dir_attacking;
 wire [4:0] p1_attack_frame;
 wire [4:0] p2_attack_frame;
 
+/*
+// PS/2 Keyboard signals
+wire [7:0] key_code;
+wire key_pressed, key_released, key_ready;
+wire p1_left, p1_right, p1_attack;
+wire p2_left, p2_right, p2_attack;
+*/
 //=======================================================
 //  Structural coding
 //=======================================================
-
-
-
 
 Clock_Divider #(.DIVISOR(2)) clock25(
 .clk(CLOCK_50),
@@ -91,6 +101,46 @@ MUXx #(.W(1)) clock_mux(
 .mux_output(clk_mux)
 );
 
+wire select_mux;
+
+MUXx #(.W(1)) game_select(
+.select(SW[0]),
+.mux_input_0(1'd0),
+.mux_input_1(1'd1),
+.mux_output(select_mux)
+);
+
+
+wire       menu_active, ctrl_countdown, countdown_active, play_active;
+wire [1:0] game_mode;      // 0 = unused, 1 = 1P, 2 = 2P
+
+menu menu_control(
+.clk(clk_mux),
+.reset(reset),
+.select(select_mux),
+.btn_confirm(~KEY[2]),   // e.g. KEY[1] debounced
+.game_mode(game_mode),
+.menu_active(menu_active),
+.countdown_active(ctrl_countdown),
+.play_active(play_active)
+);
+
+hexto7seg hex_select(
+.hex(game_mode),
+.hexn(HEX5)
+);
+
+// COUNTDOWN overlay
+wire [3:0] cd_r, cd_g, cd_b;
+wire [1:0] cd_value;  // 0=“3”,1=“2”,2=“1”,3=“GO”
+
+countdown_fsm cd_fsm(
+.clk(clk_mux),
+.reset(reset),
+.start(ctrl_countdown && (~KEY[2])),
+.cd_value(cd_value),
+.active(countdown_active)
+);
 
 vga_background background(
 .clk(clk_out),
@@ -103,6 +153,29 @@ vga_background background(
 .blue(bg_b),
 .hcnt(hcnt),
 .vcnt(vcnt)
+);
+
+
+// MENU overlay
+wire [3:0] menu_r, menu_g, menu_b;
+menu_renderer menu_i(
+.video_on(video_on & menu_active),
+.hcnt(hcnt),
+.vcnt(vcnt),
+.selected(game_mode),
+.r(menu_r),
+.g(menu_g),
+.b(menu_b)
+);
+
+countdown_renderer cd_rend (
+.video_on(video_on & countdown_active),
+.hcnt(hcnt),
+.vcnt(vcnt),
+.cd_value(cd_value),
+.r(cd_r),
+.g(cd_g),
+.b(cd_b)
 );
 
 /*
@@ -129,6 +202,7 @@ FSM_1 fsm1(
 .btn_right(~KEY[1]),
 .btn_attack(~KEY[2]),
 .x_pos_opponent(p2_x),
+.play_active(play_active),
 .x_pos(p1_x),
 .state(p1_state),
 .attacking(p1_attacking),
@@ -140,10 +214,11 @@ FSM_1 fsm1(
 FSM_2 fsm2(
 .clk(clk_mux),
 .reset(reset),
-.btn_left(SW[8]),
-.btn_right(SW[7]),
-.btn_attack(SW[6]),
+.btn_left(SW[6]),
+.btn_right(SW[8]),
+.btn_attack(SW[7]),
 .x_pos_opponent(p1_x),
+.play_active(play_active),
 .x_pos(p2_x),
 .state(p2_state),
 .attacking(p2_attacking),
@@ -233,6 +308,10 @@ Hit_Detector detector(
 .state_2(p2_state),
 .p1_x(p1_x),
 .p2_x(p2_x),
+.attacking1(p1_attacking),
+.dir_attacking1(p1_dir_attacking),
+.attacking2(p2_attacking),
+.dir_attacking2(p2_dir_attacking),
 .hit1_flag(hit1_flag),
 .hit2_flag(hit2_flag),
 .stun1_flag(stun1_flag),
@@ -247,10 +326,38 @@ Hit_Detector detector(
 );
 
 
+
+
+
+
+//========================================================================
+// 9) Final pixel mux: menu → countdown → play → background
+//========================================================================
+wire [3:0] final_r = menu_active     ? menu_r      :
+						  countdown_active ? cd_r        :
+						  play_active      ? (sprite2_on ? spr2_r : sprite1_on ? spr_r : bg_r)
+												 : bg_r;
+wire [3:0] final_g = menu_active     ? menu_g      :
+						  countdown_active ? cd_g        :
+						  play_active      ? (sprite2_on ? spr2_g : sprite1_on ? spr_g : bg_g)
+												 : bg_g;
+wire [3:0] final_b = menu_active     ? menu_b      :
+						  countdown_active ? cd_b        :
+						  play_active      ? (sprite2_on ? spr2_b : sprite1_on ? spr_b : bg_b)
+												 : bg_b;
+
+
+
+
+
+
+
+/*
 // Priority: Player 2 > Player 1 > Background
 wire [3:0] final_r = sprite2_on ? spr2_r : (sprite1_on ? spr_r : bg_r);
 wire [3:0] final_g = sprite2_on ? spr2_g : (sprite1_on ? spr_g : bg_g);
 wire [3:0] final_b = sprite2_on ? spr2_b : (sprite1_on ? spr_b : bg_b);
+*/
 
 //wire collision = (sprite_on && sprite2_on);
 //assign LEDR[4] = collision;  // Visual feedback

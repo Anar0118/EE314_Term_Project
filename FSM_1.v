@@ -13,6 +13,7 @@ module FSM_1 (
   input            btn_right,   // move right?
   input				 btn_attack,
   input      [9:0] x_pos_opponent,
+  input            play_active,
   output reg [9:0] x_pos,       // top‐left X of sprite
   output reg [3:0] state,       // current state (for debugging/anim)
   output reg		 attacking,
@@ -34,9 +35,26 @@ localparam [3:0] S_ATTACK_REC = 4'd7;
 // (you’ll add more like ATTACK, HITSTUN, etc.)
 
 // attack timing parameters (from Table 1 in Appendix A)
-localparam [2:0] ATTACK_STARTUP = 4;  // startup frames
-localparam [1:0] ATTACK_ACTIVE  = 1;  // active frames
-localparam [3:0] ATTACK_RECOVERY= 15; // recovery frames
+reg [2:0] ATTACK_STARTUP = 0;
+reg [1:0] ATTACK_ACTIVE = 0;
+reg [3:0] ATTACK_RECOVERY = 0;
+
+always@(*) begin
+	ATTACK_STARTUP  = 0;
+   ATTACK_ACTIVE   = 0;
+   ATTACK_RECOVERY = 0;
+	
+	if (attacking) begin
+		ATTACK_STARTUP  = 4;
+		ATTACK_ACTIVE   = 1;
+		ATTACK_RECOVERY = 15;
+	end
+	else if (dir_attacking) begin
+		ATTACK_STARTUP  = 3;
+		ATTACK_ACTIVE   = 2;
+		ATTACK_RECOVERY = 14;
+	end
+end
  
  
  
@@ -64,15 +82,18 @@ always@(*) begin
 
 	case (state)
 	S_IDLE: begin
-		if (btn_attack) begin
-			nxt_state = S_ATTACK;
-			nxt_attacking = 1;
-			nxt_dir_attacking = 0;
+		if (~play_active) nxt_state = S_IDLE;
+		else begin
+			if (btn_attack) begin
+				nxt_state = S_ATTACK;
+				nxt_attacking = 1;
+				nxt_dir_attacking = 0;
+			end
+				
+			else if (btn_right) nxt_state = S_MOVE_FWD;
+			else if (btn_left ) nxt_state = S_MOVE_BWD;
+			else nxt_state = S_IDLE;
 		end
-			
-		else if (btn_right) nxt_state = S_MOVE_FWD;
-		else if (btn_left ) nxt_state = S_MOVE_BWD;
-		else nxt_state = S_IDLE;
 	end
 
 	S_MOVE_FWD: begin

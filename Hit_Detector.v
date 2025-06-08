@@ -5,6 +5,10 @@ module Hit_Detector(
 	input [3:0] state_2,
 	input [9:0] p1_x,
 	input [9:0] p2_x,
+	input 		attacking1,
+	input 		dir_attacking1,
+	input 		attacking2,
+	input 		dir_attacking2,
 	output reg hit1_flag,  // player1 hitted player2
 	output reg hit2_flag,  // player1 hitted player2
 	output reg stun1_flag, // player1 stunned
@@ -23,6 +27,32 @@ localparam [3:0] S_ATTACK_ACT = 4'd6;
 
 reg [1:0] lives1 = 2'd3;
 reg [1:0] lives2 = 2'd3;
+
+
+reg [9:0] HIT_WIDTH1;
+reg [9:0] HIT_WIDTH2;
+
+always@(*) begin
+	HIT_WIDTH1  = 10'd0;
+	HIT_WIDTH2  = 10'd0;
+	
+	if (dir_attacking1) begin
+		HIT_WIDTH1  = 10'd20;
+	end
+	else if (attacking1) begin
+		HIT_WIDTH1  = 10'd32;
+	end
+	
+	if (dir_attacking2) begin
+		HIT_WIDTH2  = 10'd20;
+	end
+	else if (attacking2) begin
+		HIT_WIDTH2  = 10'd32;
+	end
+	
+	
+end
+
 
 
 //reg attack1;
@@ -65,7 +95,7 @@ always@(posedge clk or posedge reset) begin
 		if (~attack2) hit2_flag <= 1'd0;
 	
 		if (attack1 && (~attack2) && (~hit1_flag)) begin
-			if (p1_x + 10'd64 + 10'd32 > p2_x) begin
+			if (p1_x + 10'd64 + HIT_WIDTH1 > p2_x) begin
 				hit1_flag <= 1'd1;
 				stun2_flag <= 1'd1;
 				lives2 <= lives2 - 2'd1;
@@ -73,7 +103,7 @@ always@(posedge clk or posedge reset) begin
 		end
 		
 		if ((~attack1) && attack2 && (~hit2_flag)) begin
-			if (p2_x - 10'd32 - 10'd64 < p1_x) begin
+			if (p2_x - HIT_WIDTH2 - 10'd64 < p1_x) begin
 				hit2_flag <= 1'd1;
 				stun1_flag <= 1'd1;
 				lives1 <= lives1 - 1'd1;
@@ -81,12 +111,25 @@ always@(posedge clk or posedge reset) begin
 		end
 		
 		if (attack1 && attack2 && (~hit1_flag) && (~hit2_flag)) begin
+			if (p1_x + 10'd64 + HIT_WIDTH1 > p2_x) begin
+				hit1_flag <= 1'd1;
+				stun2_flag <= 1'd1;
+				lives2 <= lives2 - 2'd1;
+			end
+			
+			if (p2_x - HIT_WIDTH2 - 10'd64 < p1_x) begin
+				hit2_flag <= 1'd1;
+				stun1_flag <= 1'd1;
+				lives1 <= lives1 - 1'd1;
+			end
+			/*
 			hit1_flag  <= 1'd1;
 			hit2_flag  <= 1'd1;
 			stun1_flag <= 1'd1;
 			stun2_flag <= 1'd1;
 			lives1 <= lives1 - 1'd1;
 			lives2 <= lives2 - 1'd1;
+			*/
 		end
 		
 		
@@ -94,93 +137,77 @@ always@(posedge clk or posedge reset) begin
 		case(lives1)
 		2'd3: 
 		begin
-			led1 = 1'd1;
-			led2 = 1'd1;
-			led3 = 1'd1;
+			led1 <= 1'd1;
+			led2 <= 1'd1;
+			led3 <= 1'd1;
 		end
 		
 		2'd2:
 		begin
-			led1 = 1'd1;
-			led2 = 1'd1;
-			led3 = 1'd0;
+			led1 <= 1'd1;
+			led2 <= 1'd1;
+			led3 <= 1'd0;
 		end
 		
 		2'd1:
 		begin
-			led1 = 1'd1;
-			led2 = 1'd0;
-			led3 = 1'd0;
+			led1 <= 1'd1;
+			led2 <= 1'd0;
+			led3 <= 1'd0;
 		end
 		2'd0:
 		begin
-			led1 = 1'd0;
-			led2 = 1'd0;
-			led3 = 1'd0;
+			led1 <= 1'd0;
+			led2 <= 1'd0;
+			led3 <= 1'd0;
 		end
 		
 		default:
 		begin
-			led1 = 1'd1;
-			led2 = 1'd1;
-			led3 = 1'd1;
+			led1 <= 1'd1;
+			led2 <= 1'd1;
+			led3 <= 1'd1;
 		end
 		endcase
 		
 		case(lives2)
 		2'd3: 
 		begin
-			led4 = 1'd1;
-			led5 = 1'd1;
-			led6 = 1'd1;
+			led4 <= 1'd1;
+			led5 <= 1'd1;
+			led6 <= 1'd1;
 		end
 		
 		2'd2:
 		begin
-			led4 = 1'd1;
-			led5 = 1'd1;
-			led6 = 1'd0;
+			led4 <= 1'd1;
+			led5 <= 1'd1;
+			led6 <= 1'd0;
 		end
 		
 		2'd1:
 		begin
-			led4 = 1'd1;
-			led5 = 1'd0;
-			led6 = 1'd0;
+			led4 <= 1'd1;
+			led5 <= 1'd0;
+			led6 <= 1'd0;
 		end
 		2'd0:
 		begin
-			led4 = 1'd0;
-			led5 = 1'd0;
-			led6 = 1'd0;
+			led4 <= 1'd0;
+			led5 <= 1'd0;
+			led6 <= 1'd0;
 		end
 		
 		default:
 		begin
-			led4 = 1'd1;
-			led5 = 1'd1;
-			led6 = 1'd1;
+			led4 <= 1'd1;
+			led5 <= 1'd1;
+			led6 <= 1'd1;
 		end
 		endcase
-		
-		
-		
-		
-		
-		/*
-		leds[5:3] <= (lives1 == 2'd3) ? 3'b111 :
-						(lives1 == 2'd2) ? 3'b110 :
-						(lives1 == 2'd1) ? 3'b100 : 3'b000;
-		
-		leds[2:0] <= (lives2 == 2'd3) ? 3'b111 :
-						(lives2 == 2'd2) ? 3'b110 :
-						(lives2 == 2'd1) ? 3'b100 : 3'b000;
-		*/
 	end
 
 
 end
-
-
 
 endmodule
